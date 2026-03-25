@@ -1,0 +1,4 @@
+beautifulsoup4>=4.12
+markdownify>=0.12
+pyyaml>=6.0
+lxml>=5.0

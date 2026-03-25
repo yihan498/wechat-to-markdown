@@ -1,0 +1,20 @@
+# 个人配置（含本地路径，不提交）
+config/config.yaml
+
+# 数据目录
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store

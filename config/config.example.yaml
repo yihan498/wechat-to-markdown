@@ -1,0 +1,21 @@
+# 公众号抓取配置示例
+# 复制此文件为 config.yaml，然后填写你的实际配置
+
+accounts:
+  - name: "公众号A"
+    save_dir: "C:/Users/你的用户名/Documents/Obsidian/公众号/公众号A"
+    default: true          # 不带 --account 参数时使用此配置
+
+  - name: "公众号B"
+    save_dir: "C:/Users/你的用户名/Documents/Obsidian/公众号/公众号B"
+
+database:
+  path: "data/state/app.db"
+
+logging:
+  level: "INFO"
+  log_dir: "data/logs"
+
+fetch:
+  timeout: 30
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/XWEB/11581 XWEB/1221 Flue"
