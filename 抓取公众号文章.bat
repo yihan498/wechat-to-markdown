@@ -14,3 +14,8 @@ exit /b 1
 
 :run
 %PY% app\main.py %*
+if errorlevel 1 (
+    echo.
+    echo [错误] 程序运行失败，请查看上方错误信息
+    pause
+)

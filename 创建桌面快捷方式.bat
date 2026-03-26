@@ -1,34 +1,33 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
 
-:: 先生成图标（如果还没有）
+:: ── Step 1: generate icon.ico from source image (optional, non-blocking) ──
 if not exist "assets\icon.ico" (
-    echo 正在生成图标...
-    where python >nul 2>&1 && python assets\make_icon.py && goto make_shortcut
-    where python3 >nul 2>&1 && python3 assets\make_icon.py && goto make_shortcut
-    where py >nul 2>&1 && py assets\make_icon.py && goto make_shortcut
-    echo [警告] 未找到 Python，将使用系统默认图标
+    where python >nul 2>&1 && python assets\make_icon.py
+    where python3 >nul 2>&1 && python3 assets\make_icon.py
+    where py     >nul 2>&1 && py      assets\make_icon.py
 )
 
-:make_shortcut
-:: 用 PowerShell 在桌面创建快捷方式
-set BAT=%~dp0抓取公众号文章.bat
+:: ── Step 2: write a temp PowerShell script (ASCII only, no inline escaping) ──
+set BAT=%~dp0run_wechat_to_markdown.bat
 set ICO=%~dp0assets\icon.ico
 set WORK=%~dp0
+set PS1=%TEMP%\mk_lnk_%RANDOM%.ps1
 
-powershell -ExecutionPolicy Bypass -Command ^
-  "$wsh = New-Object -ComObject WScript.Shell; ^
-   $desktop = [Environment]::GetFolderPath('Desktop'); ^
-   $lnk = $wsh.CreateShortcut(\"$desktop\微信公众号 → Markdown.lnk\"); ^
-   $lnk.TargetPath = '%BAT%'; ^
-   $lnk.WorkingDirectory = '%WORK%'; ^
-   $lnk.WindowStyle = 1; ^
-   $lnk.Description = '抓取微信公众号文章，保存为 Markdown 文件'; ^
-   if (Test-Path '%ICO%') { $lnk.IconLocation = '%ICO%' }; ^
-   $lnk.Save(); ^
-   Write-Host '快捷方式已创建到桌面！'"
+echo $wsh  = New-Object -ComObject WScript.Shell                          > "%PS1%"
+echo $dest = [Environment]::GetFolderPath('Desktop')                     >> "%PS1%"
+echo $lnk  = $wsh.CreateShortcut("$dest\wechat-to-markdown.lnk")        >> "%PS1%"
+echo $lnk.TargetPath      = '%BAT%'                                      >> "%PS1%"
+echo $lnk.WorkingDirectory = '%WORK%'                                    >> "%PS1%"
+echo $lnk.WindowStyle     = 1                                            >> "%PS1%"
+echo $lnk.Description     = 'Fetch WeChat articles to Markdown'         >> "%PS1%"
+echo if (Test-Path '%ICO%') { $lnk.IconLocation = '%ICO%' }             >> "%PS1%"
+echo $lnk.Save()                                                         >> "%PS1%"
+echo Write-Host 'Shortcut created on Desktop: wechat-to-markdown.lnk'  >> "%PS1%"
+
+powershell -ExecutionPolicy Bypass -File "%PS1%"
+del "%PS1%"
 
 echo.
-echo 完成！桌面上已生成"微信公众号 → Markdown"快捷方式。
+echo Done.
 pause
