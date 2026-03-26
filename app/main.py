@@ -10,6 +10,9 @@
     # 指定账号（对应 config.yaml 中的 accounts[].name）
     python app/main.py --account "请辩"
 
+    # 临时指定保存目录（优先级高于 config.yaml）
+    python app/main.py --save-dir "D:/我的笔记/公众号"
+
     # 同时指定 URL 和账号
     python app/main.py --url "https://mp.weixin.qq.com/s/xxxx" --account "XX公众号"
 """
@@ -25,7 +28,7 @@ from app.extract.parser import fetch_html, parse_article
 from app.extract.cleaner import clean_html
 from app.extract.markdown_writer import html_to_markdown, build_markdown
 from app.storage.db import init_db, compute_hash, is_duplicate, save_article, log_run
-from app.storage.obsidian_writer import build_filename, write_markdown
+from app.storage.file_writer import build_filename, write_markdown
 
 
 def setup_logging(cfg: dict):
@@ -62,7 +65,7 @@ def notify_toast(title: str, message: str, success: bool = True):
                 $xml.CreateTextNode('{m}')) | Out-Null
             $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
             [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(
-                'wechat_to_obsidian').Show($toast)
+                'wechat_to_markdown').Show($toast)
         """)
         subprocess.run(
             ["powershell", "-WindowStyle", "Hidden", "-Command", ps_script],
@@ -83,7 +86,7 @@ def get_url_from_clipboard() -> str:
     return ""
 
 
-def run(url: str = None, account_name: str = None):
+def run(url: str = None, account_name: str = None, save_dir_override: str = None):
     cfg = load_config()
     setup_logging(cfg)
     logger = logging.getLogger("main")
@@ -99,7 +102,7 @@ def run(url: str = None, account_name: str = None):
         return
 
     source_name = account["name"]
-    save_dir = account["save_dir"]
+    save_dir = save_dir_override if save_dir_override else account["save_dir"]
     logger.info(f"账号: {source_name} -> {save_dir}")
 
     # 未指定 URL 时自动读剪贴板
@@ -171,7 +174,7 @@ def run(url: str = None, account_name: str = None):
         log_run(db_path, "skipped", msg)
         return
 
-    # 6. 写入 Obsidian
+    # 6. 写入文件
     filename = build_filename(
         article["title"],
         article["publish_date"],
@@ -180,7 +183,7 @@ def run(url: str = None, account_name: str = None):
     try:
         saved_path = write_markdown(save_dir, filename, full_md)
     except Exception as e:
-        msg = f"写入 Obsidian 失败: {e}"
+        msg = f"写入文件失败: {e}"
         logger.error(msg)
         notify_toast("保存失败", msg, success=False)
         log_run(db_path, "error", msg)
@@ -209,5 +212,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="公众号文章抓取工具")
     parser.add_argument("--url", default=None, help="文章链接（不填则自动读剪贴板）")
     parser.add_argument("--account", default=None, help="账号名称，对应 config.yaml 中的 accounts[].name（不填则使用 default）")
+    parser.add_argument("--save-dir", default=None, dest="save_dir",
+                        help="临时指定保存目录，优先级高于 config.yaml（例：D:/我的笔记/公众号）")
     args = parser.parse_args()
-    run(args.url, args.account)
+    run(args.url, args.account, args.save_dir)
