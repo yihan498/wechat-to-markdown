@@ -2,28 +2,30 @@
 公众号文章抓取工具
 用法：
     # 剪贴板模式（推荐）：先在微信复制文章链接，然后双击桌面快捷方式
+    # 若 config.yaml 中配置了多个目录，会弹窗让你选择保存位置
     python app/main.py
 
     # 指定 URL
     python app/main.py --url "https://mp.weixin.qq.com/s/xxxx"
 
-    # 指定账号（对应 config.yaml 中的 accounts[].name）
-    python app/main.py --account "请辩"
+    # 指定账号（对应 config.yaml 中的 accounts[].name），跳过弹窗直接保存
+    python app/main.py --account "公众号A"
 
-    # 临时指定保存目录（优先级高于 config.yaml）
-    python app/main.py --save-dir "D:/我的笔记/公众号"
+    # 临时指定保存目录（优先级最高，跳过弹窗）
+    python app/main.py --save-dir "C:/我的笔记/公众号"
 
     # 同时指定 URL 和账号
-    python app/main.py --url "https://mp.weixin.qq.com/s/xxxx" --account "XX公众号"
+    python app/main.py --url "https://mp.weixin.qq.com/s/xxxx" --account "公众号A"
 """
 import argparse
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.config import load_config, get_account
+from app.config import load_config, get_account, list_accounts
 from app.extract.parser import fetch_html, parse_article
 from app.extract.cleaner import clean_html
 from app.extract.markdown_writer import html_to_markdown, build_markdown
@@ -86,6 +88,41 @@ def get_url_from_clipboard() -> str:
     return ""
 
 
+def choose_account_dialog(accounts: list) -> dict | None:
+    """
+    用 PowerShell Out-GridView 弹出目录选择框。
+    accounts: [{"name": ..., "save_dir": ...}, ...]
+    返回用户选中的 account dict，取消则返回 None。
+    """
+    # 构造显示列表：每行 "名称  →  路径"
+    items = [f"{a['name']}  →  {a['save_dir']}" for a in accounts]
+    items_ps = "\n".join(f"    '{line}'" for line in items)
+
+    ps_script = f"""
+$items = @(
+{items_ps}
+)
+$selected = $items | Out-GridView -Title '选择保存到哪个目录' -OutputMode Single
+Write-Output $selected
+"""
+    try:
+        result = subprocess.run(
+            ["powershell", "-WindowStyle", "Hidden", "-Command", ps_script],
+            capture_output=True, text=True, encoding="utf-8", timeout=60,
+        )
+        chosen = result.stdout.strip()
+        if not chosen:
+            return None  # 用户点了取消
+        # 反查对应 account
+        for a in accounts:
+            label = f"{a['name']}  →  {a['save_dir']}"
+            if label == chosen:
+                return a
+    except Exception:
+        pass
+    return None
+
+
 def run(url: str = None, account_name: str = None, save_dir_override: str = None):
     cfg = load_config()
     setup_logging(cfg)
@@ -94,16 +131,36 @@ def run(url: str = None, account_name: str = None, save_dir_override: str = None
     db_path = cfg["database"]["path"]
     init_db(db_path)
 
-    try:
-        account = get_account(cfg, account_name)
-    except ValueError as e:
-        logger.error(str(e))
-        notify_toast("配置错误", str(e), success=False)
-        return
-
-    source_name = account["name"]
-    save_dir = save_dir_override if save_dir_override else account["save_dir"]
-    logger.info(f"账号: {source_name} -> {save_dir}")
+    # --save-dir 优先级最高，直接用，无需弹窗
+    if save_dir_override:
+        source_name = "手动指定"
+        save_dir = save_dir_override
+        logger.info(f"使用指定目录: {save_dir}")
+    elif account_name:
+        # 明确指定了账号，直接查找，无需弹窗
+        try:
+            account = get_account(cfg, account_name)
+        except ValueError as e:
+            logger.error(str(e))
+            notify_toast("配置错误", str(e), success=False)
+            return
+        source_name = account["name"]
+        save_dir = account["save_dir"]
+        logger.info(f"账号: {source_name} -> {save_dir}")
+    else:
+        # 自动模式：单账号直接用，多账号弹窗选择
+        accounts = list_accounts(cfg)
+        if len(accounts) == 1:
+            account = accounts[0]
+        else:
+            account = choose_account_dialog(accounts)
+            if account is None:
+                msg = "已取消，未选择保存目录"
+                logger.info(msg)
+                return
+        source_name = account["name"]
+        save_dir = account["save_dir"]
+        logger.info(f"账号: {source_name} -> {save_dir}")
 
     # 未指定 URL 时自动读剪贴板
     if not url:

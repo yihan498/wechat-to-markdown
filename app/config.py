@@ -23,6 +23,14 @@ def load_config(config_path: str = None) -> dict:
     return cfg
 
 
+def list_accounts(cfg: dict) -> list:
+    """返回所有已配置的账号列表"""
+    accounts = cfg.get("accounts", [])
+    if not accounts:
+        raise ValueError("config.yaml 中没有配置任何 accounts")
+    return accounts
+
+
 def get_account(cfg: dict, name: str = None) -> dict:
     """
     按名称查找账号配置；name 为 None 时返回 default 账号。
